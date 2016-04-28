@@ -51,15 +51,16 @@ namespace ModificationAlert
                     Console.WriteLine("Recipients: " + config_parts[1]);
                     Console.WriteLine("Log: " + config_parts[2]);
 
-                    foreach (string file in old_files)
+                    bool first_run = true;
+                    if (File.Exists(config_parts[2]))
                     {
-                        if (!File.Exists(file))
-                        {
-                            deleted_files.Add(file);
-                        }
+                        old_files = File.ReadAllLines(config_parts[2]).ToList();
+                        first_run = false;
                     }
 
-                    checkPath(config_parts[0], recipients, config_parts[2], old_files, new_files, modified_files, created_files);
+                    checkDeletes(old_files, deleted_files);
+
+                    checkPath(config_parts[0],  old_files, new_files, modified_files, created_files, first_run);
 
                     File.Delete(config_parts[2]);
                     File.WriteAllLines(config_parts[2], new_files.ToArray());
@@ -106,19 +107,25 @@ namespace ModificationAlert
             }
         }
 
-        static void checkPath(string path, string[] recipients, string log_path, List<string> old_files, List<string>  new_files, List<string> modified_files, List<string> created_files)
+        static void checkDeletes(List<string> old_files, List<string> deleted_files)
+        {
+            string[] file_parts = null;
+            foreach(string file in old_files)
+            {
+                file_parts = file.Split('=');
+                if (!File.Exists(file_parts[0]))
+                {
+                    Console.WriteLine("Deleted: " + file);
+                    deleted_files.Add(file_parts[0]);
+                }
+            }
+        }
+
+        static void checkPath(string path, List<string> old_files, List<string> new_files, List<string> modified_files, List<string> created_files, bool first_run)
         {
             string hash = "";
             string[] old_info = null;
             bool new_file = true;
-            bool first_run = true;
-
-            if (File.Exists(log_path))
-            {
-                old_files = File.ReadAllLines(log_path).ToList();
-                first_run = false;
-            }
-
 
             foreach (string file in Directory.GetFiles(path))
             {
@@ -162,7 +169,7 @@ namespace ModificationAlert
             foreach (string dir in Directory.GetDirectories(path))
             {
                 Console.WriteLine("Checking Directory: " + dir);
-                checkPath(dir, recipients, log_path, old_files, new_files, modified_files, created_files);
+                checkPath(dir, old_files, new_files, modified_files, created_files, first_run);
             }
         }
 
