@@ -17,6 +17,8 @@ namespace ModificationAlert
             List<string> modified_files = new List<string>();
             List<string> old_files = new List<string>();
             List<string> new_files = new List<string>();
+            List<string> created_files = new List<string>();
+            List<string> deleted_files = new List<string>();
 
             //load configuration
             string[] config = null;
@@ -49,7 +51,15 @@ namespace ModificationAlert
                     Console.WriteLine("Recipients: " + config_parts[1]);
                     Console.WriteLine("Log: " + config_parts[2]);
 
-                    checkPath(config_parts[0], recipients, config_parts[2], old_files, new_files, modified_files);
+                    foreach (string file in old_files)
+                    {
+                        if (!File.Exists(file))
+                        {
+                            deleted_files.Add(file);
+                        }
+                    }
+
+                    checkPath(config_parts[0], recipients, config_parts[2], old_files, new_files, modified_files, created_files);
 
                     File.Delete(config_parts[2]);
                     File.WriteAllLines(config_parts[2], new_files.ToArray());
@@ -59,23 +69,44 @@ namespace ModificationAlert
                     {
                         foreach (string file in modified_files)
                         {
-                            message += string.Format("<br>&emsp;-<a href='file:///{0}'>{1}</a>", file, file.Substring(file.LastIndexOf(@"\") + 1));
+                            message += string.Format("<br>&emsp;Modified: <a href='file:///{0}'>{1}</a>", file, file.Substring(file.LastIndexOf(@"\") + 1));
                         }
-                        message += "</p>";
+                        message += "<br>";
+                    }
+                    if (created_files.ToArray().Length > 0)
+                    {
+                        foreach (string file in created_files)
+                        {
+                            message += string.Format("<br>&emsp;Created: <a href='file:///{0}'>{1}</a>", file, file.Substring(file.LastIndexOf(@"\") + 1));
+                        }
+                        message += "<br>";
+                    }
+                    if (deleted_files.ToArray().Length > 0)
+                    {
+                        foreach (string file in deleted_files)
+                        {
+                            message += string.Format("<br>&emsp;Deleted: {1}", file, file.Substring(file.LastIndexOf(@"\") + 1));
+                        }
+                        message += "<br>";
+                    }
+                    message += "</p>";
+                    if (modified_files.ToArray().Length > 0 || created_files.ToArray().Length > 0 || deleted_files.ToArray().Length > 0) {
                         foreach (string recipient in recipients)
                         {
                             sendEmail(message, recipient);
                         }
                     }
-
-                    new_files.Clear();
-                    old_files.Clear();
-                    modified_files.Clear();
                 }
+
+                new_files.Clear();
+                old_files.Clear();
+                modified_files.Clear();
+                created_files.Clear();
+                deleted_files.Clear();
             }
         }
 
-        static void checkPath(string path, string[] recipients, string log_path, List<string> old_files, List<string>  new_files, List<string> modified_files)
+        static void checkPath(string path, string[] recipients, string log_path, List<string> old_files, List<string>  new_files, List<string> modified_files, List<string> created_files)
         {
             string hash = "";
             string[] old_info = null;
@@ -100,7 +131,7 @@ namespace ModificationAlert
                         foreach (string old_file in old_files)
                         {
                             old_info = old_file.Split('=');
-                            
+
                             if (file == old_info[0])
                             {
                                 new_file = false;
@@ -122,7 +153,7 @@ namespace ModificationAlert
                     if (new_file)
                     {
                         new_files.Add(file + "=" + hash);
-                        modified_files.Add(file);
+                        created_files.Add(file);
                         Console.WriteLine("Found: " + file + "-" + hash);
                     }
                 }
@@ -131,7 +162,7 @@ namespace ModificationAlert
             foreach (string dir in Directory.GetDirectories(path))
             {
                 Console.WriteLine("Checking Directory: " + dir);
-                checkPath(dir, recipients, log_path, old_files, new_files, modified_files);
+                checkPath(dir, recipients, log_path, old_files, new_files, modified_files, created_files);
             }
         }
 
@@ -164,7 +195,7 @@ namespace ModificationAlert
             client.Port = 25;
             client.DeliveryMethod = SmtpDeliveryMethod.Network;
             client.UseDefaultCredentials = false;
-            client.Host = "example.com";
+            client.Host = "smtp.example.com";
             mail.Subject = "Modified File(s)";
             mail.Body = message;
             mail.IsBodyHtml = true;
